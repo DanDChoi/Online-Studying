@@ -25,6 +25,7 @@ import java.util.Map;
 public class ValidationItemControllerV2 {
 
     private final ItemRepository itemRepository;
+    private final ItemValidator itemValidator;
 
     @GetMapping
     public String items(Model model) {
@@ -154,7 +155,7 @@ public class ValidationItemControllerV2 {
         return "redirect:/validation/v2/items/{itemId}";
     }
 
-    @PostMapping("/add") //BindingResult 위치는 @ModelAttribute 뒤에 와야한다.
+//    @PostMapping("/add") //BindingResult 위치는 @ModelAttribute 뒤에 와야한다.
     public String addItemV4(@ModelAttribute Item item, BindingResult bindingResult, RedirectAttributes redirectAttributes, Model model) {
 
         log.info("objectName={}", bindingResult.getObjectName());
@@ -167,20 +168,37 @@ public class ValidationItemControllerV2 {
 //            bindingResult.rejectValue("itemName", "required");
 //        }
 
-        if (item.getPrice() == null || item.getPrice() < 1000 || item.getPrice() > 1000000){
+        if (item.getPrice() == null || item.getPrice() < 1000 || item.getPrice() > 1000000) {
             bindingResult.rejectValue("price", "range", new Object[]{1000, 1000000}, null);
         }
-        if (item.getQuantity() >= 9999){
+        if (item.getQuantity() >= 9999) {
             bindingResult.rejectValue("quantity", "max", new Object[]{9999}, null);
         }
 
         //특정 필드가 아닌 복잡 룰 검증
-        if(item.getQuantity() != null && item.getPrice() != null){
+        if (item.getQuantity() != null && item.getPrice() != null) {
             int resultPrice = item.getPrice() * item.getQuantity();
-            if(resultPrice < 10000) {
+            if (resultPrice < 10000) {
                 bindingResult.reject("totalPriceMin", new Object[]{10000, resultPrice}, null);
             }
         }
+
+        //검증 실패하면 다시 입력폼으로
+        if (bindingResult.hasErrors()) {
+            log.info("errors={}", bindingResult);
+            return "validation/v2/addForm";
+        }
+        //성공로직
+        Item savedItem = itemRepository.save(item);
+        redirectAttributes.addAttribute("itemId", savedItem.getId());
+        redirectAttributes.addAttribute("status", true);
+        return "redirect:/validation/v2/items/{itemId}";
+    }
+
+    @PostMapping("/add")
+    public String addItemV5(@ModelAttribute Item item, BindingResult bindingResult, RedirectAttributes redirectAttributes, Model model) {
+
+        itemValidator.validate(item, bindingResult);
 
         //검증 실패하면 다시 입력폼으로
         if(bindingResult.hasErrors()){
